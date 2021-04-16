@@ -8,6 +8,9 @@ from mrl.replays.online_her_buffer import OnlineHERBuffer
 from mrl.utils.misc import softmax, AttrDict
 from sklearn.neighbors import KernelDensity
 from collections import deque
+from torch.distributions import Categorical
+import torch.nn.functional as F
+import torch.nn as nn
 
 
 def generate_overshooting_goals(num_proposals, step_amount, direct_overshoots, base_goal):
@@ -25,7 +28,7 @@ class AchievedGoalCuriosity(mrl.Module):
     To decide on goals to pursue during exploration, the module samples goals from the achieved goal
     buffer, and chooses the highest scoring (see below) viable (per q-function) goal.  
   """
-  def __init__(self, num_sampled_ags=500, max_steps=50, keep_dg_percent=-1e-1, randomize=False, use_qcutoff=True):
+  def __init__(self, num_sampled_ags=500, max_steps=50, keep_dg_percent=-1e-1, randomize=False, sample=False, use_qcutoff=True):
     super().__init__('ag_curiosity',
                      required_agent_modules=['env', 'replay_buffer', 'actor', 'critic'],
                      locals=locals())
@@ -33,6 +36,7 @@ class AchievedGoalCuriosity(mrl.Module):
     self.max_steps = max_steps  #TODO: have this be learned from past trajectories?
     self.keep_dg_percent = keep_dg_percent
     self.randomize = randomize
+    self.sample = sample
     self.use_qcutoff = use_qcutoff
 
   def _setup(self):
@@ -182,6 +186,12 @@ class AchievedGoalCuriosity(mrl.Module):
         abs_goal_values = np.abs(goal_values)
         normalized_values = abs_goal_values / np.sum(abs_goal_values, axis=1, keepdims=True)
         chosen_idx = (normalized_values.cumsum(1) > np.random.rand(normalized_values.shape[0])[:, None]).argmax(1)
+
+      elif self.sample:
+        probas = F.softmax(self.beta * goal_values, dim=1)
+        distrib = Categorical(probas)
+        chosen_idx = distrib.sample().numpy()
+        
       else:  # take minimum
         chosen_idx = np.argmin(goal_values, axis=1)
 
@@ -283,6 +293,27 @@ class SuccessAchievedGoalCuriosity(AchievedGoalCuriosity):
 
     scores = self.success_predictor(info.states).reshape(num_envs, num_sampled_ags)  # these are predicted success %
     scores = -0.5 + np.abs(scores - 0.5)  # rank by distance to 0.5, lower is closer to 0.5
+
+    return scores
+
+class SuccessAchievedGoalCuriositySample(AchievedGoalCuriosity):
+  """
+  Scores goals based on success prediction by a goal discriminator module.
+  """
+  def __init__(self, beta=-1.0, **kwargs):
+    super().__init__(**kwargs)
+    self.beta = beta
+
+  def _setup(self):
+    super()._setup()
+    self.use_qcutoff = False
+
+  def score_goals(self, sampled_ags, info):
+
+    # sampled_ags is np.array of shape NUM_ENVS x NUM_SAMPLED_GOALS (both arbitrary)
+    num_envs, num_sampled_ags = sampled_ags.shape[:2]
+    scores = self.success_predictor(info.states).reshape(num_envs, num_sampled_ags)  # these are predicted success %
+    scores = self.torch(scores)
 
     return scores
 
