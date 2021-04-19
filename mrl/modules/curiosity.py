@@ -28,7 +28,7 @@ class AchievedGoalCuriosity(mrl.Module):
     To decide on goals to pursue during exploration, the module samples goals from the achieved goal
     buffer, and chooses the highest scoring (see below) viable (per q-function) goal.  
   """
-  def __init__(self, num_sampled_ags=500, max_steps=50, keep_dg_percent=-1e-1, randomize=False, sample=False, use_qcutoff=True):
+  def __init__(self, num_sampled_ags=500, max_steps=50, keep_dg_percent=-1e-1, randomize=False, sample=False, get_last_ags=False, use_qcutoff=True):
     super().__init__('ag_curiosity',
                      required_agent_modules=['env', 'replay_buffer', 'actor', 'critic'],
                      locals=locals())
@@ -37,6 +37,7 @@ class AchievedGoalCuriosity(mrl.Module):
     self.keep_dg_percent = keep_dg_percent
     self.randomize = randomize
     self.sample = sample
+    self.get_last_ags = get_last_ags
     self.use_qcutoff = use_qcutoff
 
   def _setup(self):
@@ -137,8 +138,14 @@ class AchievedGoalCuriosity(mrl.Module):
 
     # Now consider replacing the current goals with something else:
     if np.any(experience.trajectory_over) and len(ag_buffer):
-      # sample some achieved goals
-      sample_idxs = np.random.randint(len(ag_buffer), size=self.num_sampled_ags * self.n_envs)
+      if self.get_last_ags:
+        # Get the last achieved goals idxs
+        sample_idxs = np.arange(len(ag_buffer) - self.num_sampled_ags, len(ag_buffer))
+        sample_idxs = np.concatenate([sample_idxs for _ in range(self.n_envs)]) # send the same idxs to all envs
+        
+      else:
+        # sample some achieved goals
+        sample_idxs = np.random.randint(len(ag_buffer), size=self.num_sampled_ags * self.n_envs)
       sampled_ags = ag_buffer.get_batch(sample_idxs)
       sampled_ags = sampled_ags.reshape(self.n_envs, self.num_sampled_ags, -1)
 
@@ -187,10 +194,10 @@ class AchievedGoalCuriosity(mrl.Module):
         normalized_values = abs_goal_values / np.sum(abs_goal_values, axis=1, keepdims=True)
         chosen_idx = (normalized_values.cumsum(1) > np.random.rand(normalized_values.shape[0])[:, None]).argmax(1)
 
-      elif self.sample:
+      elif self.sample: # sample from distribution given the goals values
         probas = F.softmax(self.beta * goal_values, dim=1)
         distrib = Categorical(probas)
-        chosen_idx = distrib.sample().numpy()
+        chosen_idx = distrib.sample().cpu().numpy()
         
       else:  # take minimum
         chosen_idx = np.argmin(goal_values, axis=1)
@@ -298,6 +305,7 @@ class SuccessAchievedGoalCuriosity(AchievedGoalCuriosity):
 
 class SuccessAchievedGoalCuriositySample(AchievedGoalCuriosity):
   """
+  Iterative goal sampling (IGS)
   Scores goals based on success prediction by a goal discriminator module.
   """
   def __init__(self, beta=-1.0, **kwargs):

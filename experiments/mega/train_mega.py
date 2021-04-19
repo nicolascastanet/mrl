@@ -28,7 +28,7 @@ def main(args):
   if args.sparse_reward_shaping:
     config.clip_target_range = (-np.inf, np.inf)
 
-  config.agent_name = make_agent_name(config, ['env','alg','her','layers','seed','tb','ag_curiosity','eexplore','first_visit_succ', 'dg_score_multiplier','alpha'], prefix=args.prefix)
+  config.agent_name = make_agent_name(config, ['env','alg','her','layers','seed','tb','ag_curiosity','eexplore','first_visit_succ', 'dg_score_multiplier','alpha','beta','get_last_ags'], prefix=args.prefix)
 
 
   # 5. Setup / add basic modules to the config
@@ -81,7 +81,7 @@ def main(args):
       config.ag_curiosity = SuccessAchievedGoalCuriosity(max_steps=args.env_max_step, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
     elif args.ag_curiosity == 'goaldiscsample':
       config.success_predictor = GoalSuccessPredictor(batch_size=args.succ_bs, history_length=args.succ_hl, optimize_every=args.succ_oe)
-      config.ag_curiosity = SuccessAchievedGoalCuriositySample(beta = args.beta, max_steps=args.env_max_step, sample=True, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
+      config.ag_curiosity = SuccessAchievedGoalCuriositySample(beta = args.beta, max_steps=args.env_max_step, sample=True, get_last_ags=args.get_last_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
     elif args.ag_curiosity == 'entropygainscore':
       config.bg_kde = RawKernelDensity('bg', optimize_every=args.env_max_step, samples=10000, kernel=args.kde_kernel, bandwidth = args.bandwidth, log_entropy=True)
       config.bgag_kde = RawJointKernelDensity(['bg','ag'], optimize_every=args.env_max_step, samples=10000, kernel=args.kde_kernel, bandwidth = args.bandwidth, log_entropy=True)
@@ -242,6 +242,7 @@ if __name__ == '__main__':
   parser.add_argument('--num_sampled_ags', default=100, type=int, help='number of ag candidates sampled for curiosity')
   parser.add_argument('--alpha', default=-1.0, type=float, help='Skewing parameter on the empirical achieved goal distribution. Default: -1.0')
   parser.add_argument('--beta', default=None, type=float, help='factor parameter for iterative goal sampling on entropy distribution (0 -> Uniform)')
+  parser.add_argument('--get_last_ags', default=False, type=bool, help='If true get the last ags to get the behavior goal, False : random ags')
   parser.add_argument('--reward_module', default='env', type=str, help='Reward to use (env or intrinsic)')
   parser.add_argument('--save_embeddings', action='store_true', help='save ag embeddings during training?')
   parser.add_argument('--succ_bs', default=100, type=int, help='success predictor batch size')
