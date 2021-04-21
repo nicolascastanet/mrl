@@ -20,6 +20,16 @@ class GELU(nn.Module):
   def forward(self, input):
     return F.gelu(input)
 
+class DROPOUT(nn.Module):
+  """
+  Use in MCdropout for dropout in train and test time
+  """
+  def __init__(self,proba):
+    super().__init__()
+    self.p = proba
+  def forward(self, input):
+    return F.dropout(input, p=self.p)
+
 
 ######################################################################################################
 # Basic MLP, for non actor/critic things
@@ -99,6 +109,29 @@ class FCBody(nn.Module):
           nn.Linear(dim_in, dim_out),
           norm(dim_out), activ(),
       ]
+    if use_layer_init:
+      layers = list(map(layer_init, layers))
+    self.f = nn.Sequential(*layers)
+
+  def forward(self, x):
+    return self.f(x)
+
+class MCdropBody(nn.Module):
+  def __init__(self, input_size, layer_sizes=(256, 256), norm = nn.Identity, activ = GELU, use_layer_init = True, drop = DROPOUT, proba=0.2):
+    super(MCdropBody, self).__init__()
+    self.feature_dim = layer_sizes[-1]
+    self.proba = proba
+
+    layer_sizes = (input_size, ) + tuple(layer_sizes)
+    layers = []
+
+    for dim_in, dim_out in zip(layer_sizes[:-1], layer_sizes[1:]):
+      layers += [
+          drop(proba=self.proba),
+          nn.Linear(dim_in, dim_out),
+          norm(dim_out), activ(),
+      ]
+      
     if use_layer_init:
       layers = list(map(layer_init, layers))
     self.f = nn.Sequential(*layers)

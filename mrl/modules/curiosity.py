@@ -11,6 +11,7 @@ from collections import deque
 from torch.distributions import Categorical
 import torch.nn.functional as F
 import torch.nn as nn
+import torch
 
 
 def generate_overshooting_goals(num_proposals, step_amount, direct_overshoots, base_goal):
@@ -149,11 +150,14 @@ class AchievedGoalCuriosity(mrl.Module):
       sampled_ags = ag_buffer.get_batch(sample_idxs)
       sampled_ags = sampled_ags.reshape(self.n_envs, self.num_sampled_ags, -1)
 
+
       # compute the q-values of both the sampled achieved goals and the current goals
       states = np.tile(experience.reset_state['observation'][:, None, :], (1, self.num_sampled_ags, 1))
       states = np.concatenate((states, sampled_ags), -1).reshape(self.num_sampled_ags * self.n_envs, -1)
       states_curr = np.concatenate((experience.reset_state['observation'], self.current_goals), -1)
       states_cat = np.concatenate((states, states_curr), 0)
+
+      
 
       bad_q_idxs, q_values = [], None
       if self.use_qcutoff:
@@ -287,6 +291,7 @@ class QAchievedGoalCuriosity(AchievedGoalCuriosity):
 
 class SuccessAchievedGoalCuriosity(AchievedGoalCuriosity):
   """
+  fake GOAL GAN
   Scores goals based on success prediction by a goal discriminator module.
   """
   def _setup(self):
@@ -308,13 +313,14 @@ class SuccessAchievedGoalCuriositySample(AchievedGoalCuriosity):
   Iterative goal sampling (IGS)
   Scores goals based on success prediction by a goal discriminator module.
   """
-  def __init__(self, beta=-1.0, **kwargs):
+  def __init__(self, beta=20, **kwargs):
     super().__init__(**kwargs)
-    self.beta = beta
+    self.beta = beta # Temperature factor
 
   def _setup(self):
     super()._setup()
     self.use_qcutoff = False
+    assert self.beta is not None
 
   def score_goals(self, sampled_ags, info):
 
@@ -322,6 +328,61 @@ class SuccessAchievedGoalCuriositySample(AchievedGoalCuriosity):
     num_envs, num_sampled_ags = sampled_ags.shape[:2]
     scores = self.success_predictor(info.states).reshape(num_envs, num_sampled_ags)  # these are predicted success %
     scores = self.torch(scores)
+
+    # entropy to achieve goals
+    entropy = -scores * torch.log(scores) -(1-scores)*torch.log(1-scores)
+
+    return entropy
+
+class UncertaintyCuriosity(AchievedGoalCuriosity):
+  """
+  Scores goals based on the uncertainty of the goal discriminator module (MC dropout or else ...)
+  mode in {'var-ratios', 'entropy', 'mut-inf'}
+  """
+  def __init__(self, beta=1.0, MC_samples=100, mode='var-ratios', **kwargs):
+    super().__init__(**kwargs)
+    self.beta = beta # Temperature factor
+    self.MC_samples = MC_samples
+    self.mode = mode
+
+  def _setup(self):
+    super()._setup()
+    assert self.beta is not None
+    self.use_qcutoff = False
+
+  def score_goals(self, sampled_ags, info):
+
+    # sampled_ags is np.array of shape NUM_ENVS x NUM_SAMPLED_GOALS (both arbitrary)
+    num_envs, num_sampled_ags = sampled_ags.shape[:2]
+    states = info.states
+    MC_samples = self.MC_samples
+
+    probas = torch.zeros(states.shape[0], MC_samples, 2) # NUM_SAMPLES (=n_envs x num_s_ags) x NUM_MC_SAMPLES x NUM_CLASSES
+    #self.success_predictor.training = True ?
+    for i in range(MC_samples):
+      with torch.no_grad():
+        o = self.success_predictor(states) # probas samples
+        probas[:,i] = self.torch(np.stack([o,1-o],axis=1).squeeze())
+
+    # Predictions
+    pred_classes = probas.max(dim=2)[1]
+    mean_pred = probas.mean(1).max(dim=1, keepdim=True)[1]
+
+    # Histogramm of predicted classes for each state given the MC sampling 
+    hist = np.array([np.histogram(pred_classes[i,:], bins=2)[0]  
+                              for i in range(pred_classes.shape[0])])
+
+    # Uncertainty measure
+    if self.mode == 'var-ratios':
+      uncertainty = 1-hist.max(1)/MC_samples
+    elif self.mode == 'entropy':
+      mean_entropy = -probas.mean(1)*torch.log(probas.mean(1))
+      uncertainty = mean_entropy.sum(1)
+    elif self.mode == 'mut-inf':
+      mean_entropy = -probas.mean(1)*torch.log(probas.mean(1))
+      uncertainty = mean_entropy.sum(1) + (probas*torch.log(probas)).sum(2).mean(1)
+
+    scores = self.torch(uncertainty).reshape(num_envs, num_sampled_ags)
 
     return scores
 
