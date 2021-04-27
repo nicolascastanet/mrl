@@ -195,13 +195,17 @@ def main(args):
       t = time.time()
       agent.train(num_steps=args.epoch_len)
 
+      
+
       # VIZUALIZE GOALS
       if args.save_embeddings:
         sample_idxs = np.random.choice(len(ag_buffer), size=min(len(ag_buffer), args.epoch_len), replace=False)
         last_idxs = np.arange(max(0, len(ag_buffer)-args.epoch_len), len(ag_buffer))
-        agent.logger.add_embedding('rand_ags', ag_buffer.get_batch(sample_idxs))
-        agent.logger.add_embedding('last_ags', ag_buffer.get_batch(last_idxs))
-        agent.logger.add_embedding('last_bgs', bg_buffer.get_batch(last_idxs))
+        agent.logger.add_embedding('rand_ags', ag_buffer.get_batch(sample_idxs), upper_tag='goals')
+        agent.logger.add_embedding('last_ags', ag_buffer.get_batch(last_idxs), upper_tag='goals')
+        agent.logger.add_embedding('last_bgs', bg_buffer.get_batch(last_idxs), upper_tag='goals')
+
+      
 
       # EVALUATE
       res = np.mean(agent.eval(num_episodes=30).rewards)

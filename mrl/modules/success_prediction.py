@@ -24,12 +24,28 @@ class GoalSuccessPredictor(mrl.Module):
     self.optimize_every = optimize_every
     self.opt_steps = 0
 
+
   def _setup(self):
     super()._setup()
     assert isinstance(self.replay_buffer, OnlineHERBuffer)
     assert self.env.goal_env
     self.n_envs = self.env.num_envs
     self.optimizer = torch.optim.Adam(self.goal_discriminator.model.parameters())
+    self.test_tensor = None
+
+    """ Point Maze Test tensor """
+    if self.config['other_args']['env'] == 'pointmaze':
+      
+      h = 0.1
+      x_min, x_max = -0.5, 9.6
+      y_min, y_max = -0.5, 9.6
+      xx,yy = np.meshgrid(np.arange(x_min, x_max, h),
+                              np.arange(y_min, y_max, h))
+      goal_test_tensor = torch.from_numpy(np.c_[xx.ravel(), yy.ravel()]).type(torch.FloatTensor)
+      init_state_tensor = torch.zeros((goal_test_tensor.shape[0], 2))
+
+      self.test_tensor = torch.cat((goal_test_tensor, init_state_tensor), 1).to(self.config.device)
+
 
   def _optimize(self):
     self.opt_steps += 1
@@ -52,6 +68,20 @@ class GoalSuccessPredictor(mrl.Module):
       if hasattr(self, 'logger'):
         self.logger.add_histogram('predictions', torch.sigmoid(outputs), self.log_every)
         self.logger.add_histogram('targets', targets, self.log_every)
+
+        if self.test_tensor is not None:
+          with torch.no_grad():
+            space_pred = torch.sigmoid(self.goal_discriminator(self.test_tensor))
+
+          self.logger.add_embedding('behav_goals', self.torch(behav_goals) ,self.log_every, upper_tag='success_pred')
+          self.logger.add_embedding('success_labels', targets ,self.log_every, upper_tag='success_pred')
+          self.logger.add_embedding('goals_pred', torch.sigmoid(outputs) ,self.log_every, upper_tag='success_pred')
+          self.logger.add_embedding('space_pred', space_pred ,self.log_every, upper_tag='success_pred')
+
+          import ipdb;ipdb.set_trace()
+          
+
+          
 
       # optimize
       self.optimizer.zero_grad()

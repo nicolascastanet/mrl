@@ -78,7 +78,7 @@ class Logger(mrl.Module):
       self.last_log_step[tag] = step
       self.writer.add_histogram(tag, values, step, **kwargs)
 
-  def add_embedding(self, tag, values, log_every=1000, step=None, **kwargs):
+  def add_embedding(self, tag, values, log_every=1000, step=None, upper_tag='goals', **kwargs):
     """Adds embedding data to tensorboard"""
     self.lazy_init_writer()
     if isinstance(values, list):
@@ -88,9 +88,11 @@ class Logger(mrl.Module):
     assert len(values.shape) == 2
     if step is None:
       step = self.config.env_steps
+    
     if step - self.last_log_step[tag] >= log_every:
       self.last_log_step[tag] = step
-      self.writer.add_embedding(mat=values, tag=tag, global_step=step, **kwargs)
+      self.writer.add_embedding(mat=values, tag=tag, global_step=upper_tag+'/'+str(step), **kwargs)
+    
 
   def add_tabular(self, tag, value):
     """Adds scalar to console logger"""
