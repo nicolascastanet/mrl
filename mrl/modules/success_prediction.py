@@ -77,8 +77,6 @@ class GoalSuccessPredictor(mrl.Module):
           self.logger.add_embedding('success_labels', targets ,self.log_every, upper_tag='success_pred')
           self.logger.add_embedding('goals_pred', torch.sigmoid(outputs) ,self.log_every, upper_tag='success_pred')
           self.logger.add_embedding('space_pred', space_pred ,self.log_every, upper_tag='success_pred')
-
-          import ipdb;ipdb.set_trace()
           
 
           
