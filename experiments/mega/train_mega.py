@@ -83,7 +83,7 @@ def main(args):
       config.success_predictor = GoalSuccessPredictor(batch_size=args.succ_bs, history_length=args.succ_hl, optimize_every=args.succ_oe)
       config.ag_curiosity = SuccessAchievedGoalCuriositySample(beta = args.beta, max_steps=args.env_max_step, sample=True, get_last_ags=args.get_last_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
     elif args.ag_curiosity == 'uncertainty':
-      config.success_predictor = GoalSuccessPredictor(batch_size=args.succ_bs, history_length=args.succ_hl, optimize_every=args.succ_oe)
+      #config.success_predictor = GoalSuccessPredictor(batch_size=args.succ_bs, history_length=args.succ_hl, optimize_every=args.succ_oe)
       config.ag_curiosity = UncertaintyCuriosity(beta = args.beta, MC_samples=args.num_MC_samples, mode=args.uncertainty_measure, max_steps=args.env_max_step, sample=True, get_last_ags=args.get_last_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
     elif args.ag_curiosity == 'entropygainscore':
       config.bg_kde = RawKernelDensity('bg', optimize_every=args.env_max_step, samples=10000, kernel=args.kde_kernel, bandwidth = args.bandwidth, log_entropy=True)
@@ -140,7 +140,8 @@ def main(args):
     config.goal_discriminator = PytorchModel('goal_discriminator', lambda: Critic(FCBody(e.state_dim + e.goal_dim, args.layers, nn.LayerNorm, make_activ(config.activ)), 1))
 
   elif args.ag_curiosity in {'uncertainty'}:
-    config.goal_discriminator = PytorchModel('goal_discriminator', lambda: Critic(MCdropBody(e.state_dim + e.goal_dim, args.layers, nn.LayerNorm, make_activ(config.activ),proba=args.drop_prob_MC), 1))
+    config.critic = PytorchModel('critic',
+                                lambda: Critic(MCdropBody(e.state_dim + e.goal_dim + e.action_dim, args.layers, nn.LayerNorm, make_activ(config.activ), proba=args.drop_prob_MC), 1))
 
 
   if args.reward_module == 'env':
@@ -256,7 +257,7 @@ if __name__ == '__main__':
   parser.add_argument('--beta', default=None, type=float, help='temperature factor for goal sampling (0 -> Uniform)')
   parser.add_argument('--drop_prob_MC', default=0.2, type=float, help='dropout proba for uncertainty measure')
   parser.add_argument('--num_MC_samples', default=100, type=int, help='num sample use in forward passe to compute uncertainty with dropout')
-  parser.add_argument('--uncertainty_measure', default='var-ratios', type=str, help='type of uncertainty in (var-ratios, entropy, mut-inf)')
+  parser.add_argument('--uncertainty_measure', default='var', type=str, help='type of uncertainty in (var-ratios, entropy, mut-inf)')
   parser.add_argument('--get_last_ags', default=False, type=bool, help='If true get the last ags to get the behavior goal, False : random ags')
   parser.add_argument('--reward_module', default='env', type=str, help='Reward to use (env or intrinsic)')
   parser.add_argument('--save_embeddings', action='store_true', help='save ag embeddings during training?')

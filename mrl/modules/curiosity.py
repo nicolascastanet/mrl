@@ -339,7 +339,7 @@ class UncertaintyCuriosity(AchievedGoalCuriosity):
   Scores goals based on the uncertainty of the goal discriminator module (MC dropout or else ...)
   mode in {'var-ratios', 'entropy', 'mut-inf'}
   """
-  def __init__(self, beta=1.0, MC_samples=100, mode='var-ratios', **kwargs):
+  def __init__(self, beta=1.0, MC_samples=100, mode='var', **kwargs):
     super().__init__(**kwargs)
     self.beta = beta # Temperature factor
     self.MC_samples = MC_samples
@@ -351,6 +351,28 @@ class UncertaintyCuriosity(AchievedGoalCuriosity):
     self.use_qcutoff = False
 
   def score_goals(self, sampled_ags, info):
+
+    # sampled_ags is np.array of shape NUM_ENVS x NUM_SAMPLED_GOALS (both arbitrary)
+    num_envs, num_sampled_ags = sampled_ags.shape[:2]
+    states = info.states
+    
+    MC_samples = self.MC_samples
+
+    pred = np.zeros((states.shape[0], MC_samples, 1)) # NUM_SAMPLES (=n_envs x num_s_ags) x NUM_MC_SAMPLES x 1
+    #self.success_predictor.training = True ?
+    for i in range(MC_samples):
+      with torch.no_grad():
+        o = self.compute_q(states) # q_values samples
+        pred[:,i] = o
+
+    if self.mode == 'var':
+      uncertainty = np.var(pred,axis=1)
+
+    scores = self.torch(uncertainty).reshape(num_envs, num_sampled_ags)
+
+    return scores
+
+  def score_goals_classif(self, sampled_ags, info):
 
     # sampled_ags is np.array of shape NUM_ENVS x NUM_SAMPLED_GOALS (both arbitrary)
     num_envs, num_sampled_ags = sampled_ags.shape[:2]
@@ -372,7 +394,7 @@ class UncertaintyCuriosity(AchievedGoalCuriosity):
     hist = np.array([np.histogram(pred_classes[i,:], bins=2)[0]  
                               for i in range(pred_classes.shape[0])])
 
-    # Uncertainty measure
+    # Classification Uncertainty measure
     if self.mode == 'var-ratios':
       uncertainty = 1-hist.max(1)/MC_samples
     elif self.mode == 'entropy':
