@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import pickle
 import os
+import copy
 import glob
 import shutil
 from typing import Iterable, Optional, List, Union, Callable
@@ -336,6 +337,22 @@ class Module(object):
 
   def __str__(self):
     return self.__class__.__name__
+  
+  def _copy(self, init_args:dict = None,  name:str = None):
+    if init_args:
+      new_obj = self.__class__(**init_args)
+    else:
+      new_obj = self.__class__()
+    if hasattr(self, '__dict__'):
+      for k in self.__dict__ :
+        if k == 'module_name' and name:
+          attr = name
+        else:
+          attr = getattr(self, k)
+        setattr(new_obj, k, attr)
+        return new_obj
+    else:
+        return self
 
 
 def config_to_agent(config_dict: dict):
