@@ -74,10 +74,11 @@ class OnlineHERBuffer(mrl.Module):
       else:
         behavioral = desired
       for i in range(self.n_envs):
-        self._subbuffers[i].append([
-            state[i], action[i], reward[i], next_state[i], done[i], previous_achieved[i], achieved[i],
-            behavioral[i], desired[i]
-        ])
+        if not exp.dont_record[i]:
+          self._subbuffers[i].append([
+              state[i], action[i], reward[i], next_state[i], done[i], previous_achieved[i], achieved[i],
+              behavioral[i], desired[i]
+          ])
     else:
       state = exp.state
       next_state = exp.next_state

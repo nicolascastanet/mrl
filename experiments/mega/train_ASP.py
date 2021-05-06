@@ -162,6 +162,7 @@ def main(args):
 
 
   # 7. Set Alice and Bob config (Policy, Actor/Critic, Algo, Replay)
+  # TO DO : automatiser la création de cette config
 
   # Alice
   
@@ -192,6 +193,9 @@ def main(args):
   config.Bob = config.algorithm._copy(name = 'Bob')
   config.Bob.actor = dict_b['actor']
   config.Bob.replay_buffer = dict_b['replay_buffer']
+
+  # Other config
+  config.evaluation.policy = config.policy_B
 
 
   # 8. Make the agent and run the training loop.
