@@ -9,12 +9,11 @@ import os
 
 class ActorPolicy(mrl.Module):
   """Used for DDPG / TD3 and other deterministic policy variants"""
-  def __init__(self):
+  def __init__(self, module_name='policy', required_agent_modules=[
+    'actor', 'action_noise', 'env', 'replay_buffer']):
     super().__init__(
-        'policy',
-        required_agent_modules=[
-            'actor', 'action_noise', 'env', 'replay_buffer'
-        ],
+        module_name,
+        required_agent_modules,
         locals=locals())
   
   def _setup(self):
@@ -60,12 +59,12 @@ class ActorPolicy(mrl.Module):
 
 class StochasticActorPolicy(mrl.Module):
   """Used for SAC / learned action noise"""
-  def __init__(self):
-    super().__init__(
-        'policy',
-        required_agent_modules=[
+  def __init__(self, module_name='policy', required_agent_modules=[
             'actor', 'env', 'replay_buffer'
-        ],
+        ]):
+    super().__init__(
+        module_name,
+        required_agent_modules,
         locals=locals())
 
   def _setup(self):
@@ -113,11 +112,12 @@ class OffPolicyActorCritic(mrl.Module):
 
   def __init__(
       self,
-      module_name='algorithm'
+      module_name='algorithm',
+      required_agent_modules=['actor','critic','replay_buffer', 'env']
     ):
     super().__init__(
         module_name,
-        required_agent_modules=['actor','critic','replay_buffer', 'env'],
+        required_agent_modules,
         locals=locals())
 
   def _setup(self):

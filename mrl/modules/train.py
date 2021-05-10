@@ -5,8 +5,8 @@ from copy import deepcopy
 import time
 
 class StandardTrain(mrl.Module):
-  def __init__(self):
-    super().__init__('train', required_agent_modules = ['env', 'policy', 'optimize'], locals=locals())
+  def __init__(self, module_name='train', required_agent_modules = ['env', 'policy', 'optimize']):
+    super().__init__(module_name, required_agent_modules, locals=locals())
 
   def _setup(self):
     assert hasattr(self.config, 'optimize_every')
@@ -73,8 +73,8 @@ class StandardTrain(mrl.Module):
 
 
 class AspTrain(mrl.Module):
-  def __init__(self, max_steps=50):
-    super().__init__('train', required_agent_modules = ['env', 'policy_A','policy_B','Alice','Bob', 'optimize'], locals=locals())
+  def __init__(self, module_name='train', required_agent_modules = ['env', 'policy_A','policy_B','Alice','Bob', 'optimize'], max_steps=50):
+    super().__init__(module_name, required_agent_modules, locals=locals())
     self.max_steps = max_steps
 
   def _setup(self):
