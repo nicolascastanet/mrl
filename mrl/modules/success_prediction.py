@@ -11,7 +11,7 @@ from mrl.replays.online_her_buffer import OnlineHERBuffer
 class GoalSuccessPredictor(mrl.Module):
   """Predicts success using a learned discriminator"""
 
-  def __init__(self, batch_size = 50, history_length = 200, optimize_every=250, log_every=5000):
+  def __init__(self, batch_size = 50, history_length = 200, optimize_every=250, log_every=5000, k_steps=1):
     super().__init__(
       'success_predictor',
       required_agent_modules=[
@@ -23,6 +23,7 @@ class GoalSuccessPredictor(mrl.Module):
     self.history_length = history_length
     self.optimize_every = optimize_every
     self.opt_steps = 0
+    self.k_steps = k_steps
 
 
   def _setup(self):
@@ -44,7 +45,7 @@ class GoalSuccessPredictor(mrl.Module):
       goal_test_tensor = torch.from_numpy(np.c_[xx.ravel(), yy.ravel()]).type(torch.FloatTensor)
       init_state_tensor = torch.zeros((goal_test_tensor.shape[0], 2))
 
-      self.test_tensor = torch.cat((goal_test_tensor, init_state_tensor), 1).to(self.config.device)
+      self.test_tensor = torch.cat((init_state_tensor, goal_test_tensor), 1).to(self.config.device)
 
 
   def _optimize(self):
@@ -61,9 +62,17 @@ class GoalSuccessPredictor(mrl.Module):
       targets = self.torch(successes)
       inputs = self.torch(states)
 
-      # outputs here have not been passed through sigmoid
-      outputs = self.goal_discriminator(inputs)
-      loss = F.binary_cross_entropy_with_logits(outputs, targets)
+      # k_steps optimization
+      for _ in range(self.k_steps):
+        # outputs here have not been passed through sigmoid
+        outputs = self.goal_discriminator(inputs)
+        loss = F.binary_cross_entropy_with_logits(outputs, targets)
+
+        
+        # optimize
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
       if hasattr(self, 'logger'):
         self.logger.add_histogram('predictions', torch.sigmoid(outputs), self.log_every)
@@ -72,19 +81,12 @@ class GoalSuccessPredictor(mrl.Module):
         if self.test_tensor is not None:
           with torch.no_grad():
             space_pred = torch.sigmoid(self.goal_discriminator(self.test_tensor))
+            goals_pred = torch.sigmoid(self.goal_discriminator(inputs))
 
           self.logger.add_embedding('behav_goals', self.torch(behav_goals) ,self.log_every, upper_tag='success_pred')
           self.logger.add_embedding('success_labels', targets ,self.log_every, upper_tag='success_pred')
-          self.logger.add_embedding('goals_pred', torch.sigmoid(outputs) ,self.log_every, upper_tag='success_pred')
+          self.logger.add_embedding('goals_pred', goals_pred ,self.log_every, upper_tag='success_pred')
           self.logger.add_embedding('space_pred', space_pred ,self.log_every, upper_tag='success_pred')
-          
-
-          
-
-      # optimize
-      self.optimizer.zero_grad()
-      loss.backward()
-      self.optimizer.step()
 
   def __call__(self, *states_and_maybe_goals):
     """Input / output are numpy arrays"""
