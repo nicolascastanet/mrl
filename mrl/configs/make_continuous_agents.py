@@ -130,3 +130,96 @@ def make_sac_agent(base_config=spinning_up_sac_config,
       lambda: Critic(FCBody(e.state_dim + e.goal_dim + e.action_dim, args.layers, layer_norm, make_activ(config.activ), False), 1, False))
 
   return config
+
+
+
+def make_Alice_and_Bob(config):
+  """
+    Set Alice and Bob policies / replay / algo etc ... from agent config
+    TO DO : implem default Agent config
+  """
+  # Alice
+  config.policy_A.required_agent_modules = [
+            'actor_A', 'action_noise', 'env', 'replay_buffer_A'
+        ]
+  config.policy_A.module_name = 'policy_A'
+  config.policy_A.actor = config.actor_A
+  config.policy_A.replay_buffer = config.replay_A
+
+
+  config.Alice.required_agent_modules = ['actor_A','critic_A','replay_buffer_A', 'env']
+  config.Alice.actor = config.actor_A
+  config.Alice.critic = config.critic_A
+  config.Alice.replay_buffer = config.replay_A
+
+
+  # Bob
+  config.policy_B.required_agent_modules = [
+            'actor_B', 'action_noise', 'env', 'replay_buffer_B'
+        ]
+  config.policy_B.module_name = 'policy_B'
+  config.policy_B.actor = config.actor_B
+  config.policy_B.replay_buffer = config.replay_B
+
+
+  config.Bob.required_agent_modules = ['actor_B','critic_B','replay_buffer_B', 'env']
+  config.Bob.actor = config.actor_B
+  config.Bob.critic = config.critic_B
+  config.Bob.replay_buffer = config.replay_B
+
+  config.evaluation.required_agent_modules = ['policy_B', 'eval_env']
+  config.evaluation.policy = config.policy_B
+  
+
+
+  """
+
+  # Alice
+  dict_a = {'actor': config.actor._copy({'name':'actor', 
+                                        'model_fn':config.actor.model_fn}),
+            'critic': config.actor._copy({'name':'critic', 
+                                        'model_fn':config.critic.model_fn}),                   
+            'replay_buffer': config.replay._copy()
+            }
+
+  config.actor_A = dict_a['actor']
+  config.critic_A = dict_a['critic']
+  config.replay_A = dict_a['replay_buffer']
+  
+  
+  config.policy_A = config.policy._copy(name = 'policy_A')
+  config.policy_A.actor = config.actor_A
+  config.policy_A.replay_buffer = config.replay_A
+
+  config.Alice = config.algorithm._copy(name = 'Alice')
+  config.Alice.actor = config.actor_A
+  config.Alice.critic = config.critic_A
+  config.Alice.replay_buffer = config.replay_A
+  
+  
+
+  # Bob
+  dict_b = {'actor': config.actor._copy({'name':'actor', 
+                                        'model_fn':config.actor.model_fn}),
+            'critic': config.actor._copy({'name':'critic', 
+                                        'model_fn':config.critic.model_fn}),                   
+            'replay_buffer': config.replay._copy()
+            }
+
+  config.actor_B = dict_b['actor']
+  config.critic_B = dict_b['critic']
+  config.replay_B = dict_b['replay_buffer']
+  
+  config.policy_B = config.policy._copy(name = 'policy_B')
+  config.policy_B.actor = config.actor_B
+  config.policy_B.replay_buffer = config.replay_B
+
+  config.Bob = config.algorithm._copy(name = 'Bob')
+  config.Bob.actor = config.actor_B
+  config.Bob.critic = config.critic_B
+  config.Bob.replay_buffer = config.replay_B
+
+  # Other config
+  config.evaluation.policy = config.policy_B # Only Bob policy when test time"""
+
+  return config

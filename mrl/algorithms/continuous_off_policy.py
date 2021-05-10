@@ -111,9 +111,12 @@ class StochasticActorPolicy(mrl.Module):
 class OffPolicyActorCritic(mrl.Module):
   """This is the standard DDPG"""
 
-  def __init__(self):
+  def __init__(
+      self,
+      module_name='algorithm'
+    ):
     super().__init__(
-        'algorithm',
+        module_name,
         required_agent_modules=['actor','critic','replay_buffer', 'env'],
         locals=locals())
 

@@ -44,7 +44,6 @@ class StandardTrain(mrl.Module):
 
       state, experience = debug_vectorized_experience(state, action, next_state, reward, done, info)
       self.process_experience(experience)
-      import ipdb;ipdb.set_trace()
 
       if render:
         time.sleep(0.02)
@@ -75,14 +74,14 @@ class StandardTrain(mrl.Module):
 
 class AspTrain(mrl.Module):
   def __init__(self, max_steps=50):
-    super().__init__('train', required_agent_modules = ['env', 'policy_A','policy_B', 'optimize'], locals=locals())
+    super().__init__('train', required_agent_modules = ['env', 'policy_A','policy_B','Alice','Bob', 'optimize'], locals=locals())
+    self.max_steps = max_steps
 
   def _setup(self):
     assert hasattr(self.config, 'optimize_every')
     self.optimize_every = self.config.optimize_every
     self.env_steps = 0
     self.reset_idxs = []
-    self.max_steps = max_steps
 
   def __call__(self, num_ep : int, render=False, dont_optimize=False, dont_train=False):
     """
@@ -106,7 +105,7 @@ class AspTrain(mrl.Module):
       dones_A = np.zeros((num_envs,))
       steps_A = np.zeros((num_envs,))
       goal_A = state  # Goal for Alice is the initial state
-      goal_B = np.zeros((num_envs, state_dim)) # Goal for Bob are the final states for Alice
+      final_states_A = np.zeros((num_envs, state_dim))
 
       while not np.all(dones_A):
 
@@ -134,6 +133,7 @@ class AspTrain(mrl.Module):
 
       dones_B = np.zeros((num_envs,))
       steps_B = np.zeros((num_envs,))
+      goal_B = final_states_A # Goal for Bob are the final states for Alice
       success_B = np.zeros((num_envs,))
 
       while not np.all(dones_B):

@@ -26,7 +26,7 @@ from mrl.modules.logging import Logger, colorize
 from mrl.modules.model import PytorchModel
 from mrl.modules.normalizer import *
 from mrl.modules.success_prediction import GoalSuccessPredictor
-from mrl.modules.train import StandardTrain
+from mrl.modules.train import StandardTrain, AspTrain
 
 # Algorithms
 from mrl.algorithms.continuous_off_policy import *

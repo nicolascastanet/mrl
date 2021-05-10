@@ -1,5 +1,6 @@
 # 1. Imports
 from mrl.import_all import *
+from mrl.configs.make_continuous_agents import *
 from mrl.modules.train import debug_vectorized_experience
 from experiments.mega.make_env import make_env
 import time
@@ -35,12 +36,16 @@ def main(args):
   # 5. Setup / add basic modules to the config
   config.update(
       dict(
-          trainer=StandardTrain(),
+          trainer=AspTrain(),
           evaluation=EpisodicEval(),
-          policy=ActorPolicy(),
+          policy_A=ActorPolicy(),
+          policy_B=ActorPolicy(),
           logger=Logger(),
           state_normalizer=Normalizer(MeanStdNormalizer()),
-          replay=OnlineHERBuffer(),
+          replay_A=OnlineHERBuffer(module_name='replay_buffer_A'),
+          replay_B=OnlineHERBuffer(module_name='replay_buffer_B'),
+          Alice=DDPG(module_name='Alice'),
+          Bob=DDPG(module_name='Bob'),
       ))
 
 
@@ -48,6 +53,7 @@ def main(args):
   if config.prioritized_mode == 'mep':
     config.prioritized_replay = EntropyPrioritizedOnlineHERBuffer()
 
+  """
   if not args.no_ag_kde:
     config.ag_kde = RawKernelDensity('ag', optimize_every=1, samples=10000, kernel=args.kde_kernel, bandwidth = args.bandwidth, log_entropy=True)
   if args.ag_curiosity is not None:
@@ -60,46 +66,16 @@ def main(args):
     if 'flow' in args.ag_curiosity:
       config.ag_flow = FlowDensity('ag')
 
-    use_qcutoff = not args.no_cutoff
+    use_qcutoff = not args.no_cutoff"""
 
-    if args.ag_curiosity == 'minq':
-      config.ag_curiosity = QAchievedGoalCuriosity(max_steps = args.env_max_step, num_sampled_ags=args.num_sampled_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'randq':
-      config.ag_curiosity = QAchievedGoalCuriosity(max_steps = args.env_max_step, randomize=True, num_sampled_ags=args.num_sampled_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'minkde':
-      config.ag_curiosity = DensityAchievedGoalCuriosity(max_steps = args.env_max_step, num_sampled_ags=args.num_sampled_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'minrnd':
-      config.ag_curiosity = DensityAchievedGoalCuriosity('ag_rnd', max_steps = args.env_max_step, num_sampled_ags=args.num_sampled_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'minflow':
-      config.ag_curiosity = DensityAchievedGoalCuriosity('ag_flow', max_steps = args.env_max_step, num_sampled_ags=args.num_sampled_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'randkde':
-      config.ag_curiosity = DensityAchievedGoalCuriosity(alpha = args.alpha, max_steps = args.env_max_step, randomize=True, num_sampled_ags=args.num_sampled_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'randrnd':
-      config.ag_curiosity = DensityAchievedGoalCuriosity('ag_rnd', alpha = args.alpha, max_steps = args.env_max_step, num_sampled_ags=args.num_sampled_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'randflow':
-      config.ag_curiosity = DensityAchievedGoalCuriosity('ag_flow', alpha = args.alpha, max_steps = args.env_max_step, num_sampled_ags=args.num_sampled_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'goaldisc':
-      config.success_predictor = GoalSuccessPredictor(batch_size=args.succ_bs, history_length=args.succ_hl, optimize_every=args.succ_oe)
-      config.ag_curiosity = SuccessAchievedGoalCuriosity(max_steps=args.env_max_step, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'goaldiscsample':
-      config.success_predictor = GoalSuccessPredictor(batch_size=args.succ_bs, history_length=args.succ_hl, optimize_every=args.succ_oe)
-      config.ag_curiosity = SuccessAchievedGoalCuriositySample(beta = args.beta, max_steps=args.env_max_step, sample=True, get_last_ags=args.get_last_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'uncertainty':
-      config.success_predictor = GoalSuccessPredictor(batch_size=args.succ_bs, history_length=args.succ_hl, optimize_every=args.succ_oe)
-      config.ag_curiosity = UncertaintyCuriosity(beta = args.beta, MC_samples=args.num_MC_samples, mode=args.uncertainty_measure, max_steps=args.env_max_step, sample=True, get_last_ags=args.get_last_ags, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    elif args.ag_curiosity == 'entropygainscore':
-      config.bg_kde = RawKernelDensity('bg', optimize_every=args.env_max_step, samples=10000, kernel=args.kde_kernel, bandwidth = args.bandwidth, log_entropy=True)
-      config.bgag_kde = RawJointKernelDensity(['bg','ag'], optimize_every=args.env_max_step, samples=10000, kernel=args.kde_kernel, bandwidth = args.bandwidth, log_entropy=True)
-      config.ag_curiosity = EntropyGainScoringGoalCuriosity(max_steps=args.env_max_step, use_qcutoff=use_qcutoff, keep_dg_percent=args.keep_dg_percent)
-    else:
-      raise NotImplementedError
 
   if args.noise_type.lower() == 'gaussian': noise_type = GaussianProcess
   if args.noise_type.lower() == 'ou': noise_type = OrnsteinUhlenbeckProcess
   config.action_noise = ContinuousActionNoise(noise_type, std=ConstantSchedule(args.action_noise))
 
   if args.alg.lower() == 'ddpg': 
-    config.algorithm = DDPG()
+    #config.algorithm = DDPG()
+    print("coucou")
 
   elif args.alg.lower() == 'td3':
     config.algorithm = TD3()
@@ -131,10 +107,17 @@ def main(args):
   if args.alg.lower() == 'dqn':
     config.qvalue = PytorchModel('qvalue', lambda: Critic(FCBody(e.state_dim + e.goal_dim, args.layers, nn.LayerNorm, make_activ(config.activ)), e.action_dim))
   else:
-    config.actor = PytorchModel('actor',
+    config.actor_A = PytorchModel('actor_A',
                                 lambda: Actor(FCBody(e.state_dim + e.goal_dim, args.layers, nn.LayerNorm, make_activ(config.activ)), e.action_dim, e.max_action))
-    config.critic = PytorchModel('critic',
+    config.critic_A = PytorchModel('critic_A',
                                 lambda: Critic(FCBody(e.state_dim + e.goal_dim + e.action_dim, args.layers, nn.LayerNorm, make_activ(config.activ)), 1))
+
+    config.actor_B = PytorchModel('actor_B',
+                                lambda: Actor(FCBody(e.state_dim + e.goal_dim, args.layers, nn.LayerNorm, make_activ(config.activ)), e.action_dim, e.max_action))
+    config.critic_B = PytorchModel('critic_B',
+                                lambda: Critic(FCBody(e.state_dim + e.goal_dim + e.action_dim, args.layers, nn.LayerNorm, make_activ(config.activ)), 1))
+
+
     if args.alg.lower() == 'td3':
       config.critic2 = PytorchModel('critic2',
         lambda: Critic(FCBody(e.state_dim + e.goal_dim + e.action_dim, args.layers, nn.LayerNorm, make_activ(config.activ)), 1))
@@ -162,44 +145,8 @@ def main(args):
 
 
   # 7. Set Alice and Bob config (Policy, Actor/Critic, Algo, Replay)
-  # TO DO : automatiser la création de cette config
-
-  # Alice
-  
-  dict_a = {'actor': config.actor._copy({'name':'actor', 
-                                         'model_fn':config.actor.model_fn}), 
-            'replay_buffer': config.replay._copy()
-            }
-  
-  config.policy_A = config.policy._copy(name = 'policy_A')
-  config.policy_A.actor = dict_a['actor']
-  config.policy_A.replay_buffer = dict_a['replay_buffer']
-
-  config.Alice = config.algorithm._copy(name = 'Alice')
-  config.Alice.actor = dict_a['actor']
-  config.Alice.replay_buffer = dict_a['replay_buffer']
-  
-  
-
-  # Bob
-  dict_b = {'actor': config.actor._copy({'name':'actor', 'model_fn':config.actor.model_fn}), 
-            'replay_buffer': config.replay._copy()
-            }
-
-  config.policy_B = config.policy._copy(name = 'policy_B')
-  config.policy_B.actor = dict_b['actor']
-  config.policy_B.replay_buffer = dict_b['replay_buffer']
-
-  config.Bob = config.algorithm._copy(name = 'Bob')
-  config.Bob.actor = dict_b['actor']
-  config.Bob.replay_buffer = dict_b['replay_buffer']
-
-  # Other config
-  config.evaluation.policy = config.policy_B
-
-
   # 8. Make the agent and run the training loop.
-  agent = mrl.config_to_agent(config)
+  agent = mrl.config_to_agent(make_Alice_and_Bob(config))
 
   import ipdb;ipdb.set_trace()
 
@@ -222,18 +169,19 @@ def main(args):
         done = False
         while not done:
           time.sleep(0.02)
-          action = agent.policy(state)
+          action = agent.policy_B(state)
           state, reward, done, info = env.step(action)
           env.render()
           print(reward[0])
   else:
-    ag_buffer = agent.replay_buffer.buffer.BUFF.buffer_ag
-    bg_buffer = agent.replay_buffer.buffer.BUFF.buffer_bg
+    ag_buffer = agent.Bob.replay_buffer.buffer.BUFF.buffer_ag
+    bg_buffer = agent.Alice.replay_buffer.buffer.BUFF.buffer_ag # Behavior goals = Alice's achieved goals
 
     # EVALUATE
     res = np.mean(agent.eval(num_episodes=30).rewards)
     agent.logger.log_color('Initial test reward (30 eps):', '{:.2f}'.format(res))
 
+    max_ep = int(args.max_steps // args.env_max_step)
     for epoch in range(int(args.max_steps // args.epoch_len)):
       t = time.time()
       agent.train(num_steps=args.epoch_len)
@@ -272,7 +220,7 @@ if __name__ == '__main__':
       '--layers', nargs='+', default=(512,512,512), type=int, help='sizes of layers for actor/critic networks')
   parser.add_argument('--noise_type', default='Gaussian', type=str, help='type of action noise (Gaussian or OU)')
   parser.add_argument('--tb', default='', type=str, help='a tag for the agent name / tensorboard')
-  parser.add_argument('--epoch_len', default=5000, type=int, help='number of steps between evals')
+  parser.add_argument('--epoch_len', default=100, type=int, help='number of episodes between evals')
   parser.add_argument('--num_envs', default=None, type=int, help='number of envs')
 
   # Make env args
