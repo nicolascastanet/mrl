@@ -78,6 +78,7 @@ class EnvModule(mrl.Module):
     self.state = self.env.reset()
 
   def step(self, action):
+    
     res = self.env.step(action)
     self.state = res[0]
     return res
@@ -167,6 +168,57 @@ class ReturnAndObsWrapper(gym.Wrapper):
       info.terminal_state = False
       info.episodic_return = None
     return obs, reward, done, info
+
+  def render(self, *args, **kwargs):
+    return self.env.render(*args, **kwargs)
+
+  def reset(self):
+    return self.env.reset()
+
+  def __getattr__(self, attr):
+    return getattr(self.env, attr)
+
+
+class AspTrainWrapper(gym.Wrapper):
+  """
+    Use for Alice and Bob interactions with the environnement in Asymetric Self-Play 
+  """
+  def __init__(self, env):
+    gym.Wrapper.__init__(self, env)
+    self.total_rewards = 0
+
+  def step(self, action):
+    obs, reward, done, info = self.env.step(action)
+
+    if self.mode == 'Bob':
+      #First visit done for Bob
+      if np.allclose(reward, 0.):
+        done = True
+        info['is_success'] = True
+        if info.get('TimeLimit.truncated'):
+          del info['TimeLimit.truncated']
+
+      return obs, reward, done, info
+
+    elif self.mode == 'Alice':
+
+      info = AttrDict(info)
+      self.total_rewards += reward
+      if done:
+        done = False
+        info.done_observation = obs
+        #info.terminal_state = True
+        if info.get('TimeLimit.truncated'):
+          done = True
+          info.terminal_state = False
+        info.episodic_return = self.total_rewards
+        self.total_rewards = 0
+      else:
+        info.terminal_state = False
+        info.episodic_return = None
+        
+      return obs, reward, done, info
+
 
   def render(self, *args, **kwargs):
     return self.env.render(*args, **kwargs)

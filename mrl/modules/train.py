@@ -82,6 +82,7 @@ class AspTrain(mrl.Module):
     self.optimize_every = self.config.optimize_every
     self.env_steps = 0
     self.reset_idxs = []
+    self.goals_B = None
 
   def __call__(self, num_ep : int, render=False, dont_optimize=False, dont_train=False):
     """
@@ -94,13 +95,13 @@ class AspTrain(mrl.Module):
     state_dim = self.env.state_dim
     num_envs = env.num_envs
 
-    state = env.reset()
-    self.alice_traj = []
-    self.bob_traj = []
-
     for _ in range(num_ep // env.num_envs):
 
-      # Alice's turn
+      state = env.reset()
+      self.alice_traj = []
+      self.bob_traj = []
+
+      self.mode = 'Alice' # Alice's turn
 
       dones_A = np.zeros((num_envs,))
       steps_A = np.zeros((num_envs,))
@@ -129,11 +130,11 @@ class AspTrain(mrl.Module):
           time.sleep(0.02)
           env.render()
 
-      # Bob's turn
+      self.mode = 'Bob' # Bob's turn
 
       dones_B = np.zeros((num_envs,))
       steps_B = np.zeros((num_envs,))
-      goal_B = final_states_A # Goal for Bob are the final states for Alice
+      self.goals_B = final_states_A # Goal for Bob are the final states for Alice
       success_B = np.zeros((num_envs,))
 
       while not np.all(dones_B):

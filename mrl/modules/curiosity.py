@@ -200,7 +200,11 @@ class AchievedGoalCuriosity(mrl.Module):
 
       elif self.sample: # sample from distribution given the goals values
         probas = F.softmax(self.beta * goal_values, dim=1)
-        distrib = Categorical(probas)
+
+        try:
+          distrib = Categorical(probas)
+        except ValueError:
+          import ipdb;ipdb.set_trace()
         chosen_idx = distrib.sample().cpu().numpy()
         
       else:  # take minimum
@@ -332,7 +336,7 @@ class SuccessAchievedGoalCuriositySample(AchievedGoalCuriosity):
     # entropy to achieve goals
     entropy = -scores * torch.log(scores) -(1-scores)*torch.log(1-scores)
 
-    return entropy
+    return torch.nan_to_num(entropy)
 
 class UncertaintyCuriosity(AchievedGoalCuriosity):
   """
