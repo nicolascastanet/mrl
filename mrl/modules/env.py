@@ -186,11 +186,14 @@ class AspTrainWrapper(gym.Wrapper):
   def __init__(self, env):
     gym.Wrapper.__init__(self, env)
     self.total_rewards = 0
+    self.mode = 'Bob'
 
   def step(self, action):
+    
     obs, reward, done, info = self.env.step(action)
 
     if self.mode == 'Bob':
+      import ipdb;ipdb.set_trace()
       #First visit done for Bob
       if np.allclose(reward, 0.):
         done = True
@@ -201,7 +204,7 @@ class AspTrainWrapper(gym.Wrapper):
       return obs, reward, done, info
 
     elif self.mode == 'Alice':
-
+      import ipdb;ipdb.set_trace()
       info = AttrDict(info)
       self.total_rewards += reward
       if done:

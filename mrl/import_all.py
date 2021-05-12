@@ -19,7 +19,7 @@ from mrl.configs.discrete_off_policy import *
 from mrl.modules.action_noise import *
 from mrl.modules.curiosity import *
 from mrl.modules.density import *
-from mrl.modules.env import EnvModule, FirstVisitDoneWrapper
+from mrl.modules.env import EnvModule, FirstVisitDoneWrapper, AspTrainWrapper
 from mrl.modules.eval import EpisodicEval
 from mrl.modules.goal_reward import GoalEnvReward, NeighborReward
 from mrl.modules.logging import Logger, colorize

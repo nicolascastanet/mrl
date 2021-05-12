@@ -37,15 +37,21 @@ def main(args):
   config.update(
       dict(
           trainer=AspTrain(),
-          evaluation=EpisodicEval(),
-          policy_A=ActorPolicy(),
-          policy_B=ActorPolicy(),
+          evaluation=EpisodicEval(required_agent_modules = ['policy_B', 'eval_env']),
+          policy_A=ActorPolicy(module_name='policy_A', required_agent_modules=[
+            'actor_A', 'action_noise', 'env', 'replay_buffer_A'
+        ]),
+          policy_B=ActorPolicy(module_name='policy_B', required_agent_modules=[
+            'actor_B', 'action_noise', 'env', 'replay_buffer_B'
+        ]),
           logger=Logger(),
           state_normalizer=Normalizer(MeanStdNormalizer()),
           replay_A=OnlineHERBuffer(module_name='replay_buffer_A'),
           replay_B=OnlineHERBuffer(module_name='replay_buffer_B'),
-          Alice=DDPG(module_name='Alice'),
-          Bob=DDPG(module_name='Bob'),
+          Alice=DDPG(module_name='Alice', required_agent_modules=[
+            'actor_A','critic_A','replay_buffer_A', 'env']),
+          Bob=DDPG(module_name='Bob', required_agent_modules=[
+            'actor_B','critic_B','replay_buffer_B', 'env']),
       ))
 
 
@@ -95,12 +101,14 @@ def main(args):
   env, eval_env = make_env(args)
   if args.first_visit_done:
     env1, eval_env1 = env, eval_env
+    env_A = copy.deepcopy(env)
     env = lambda: FirstVisitDoneWrapper(env1())
     eval_env = lambda: FirstVisitDoneWrapper(eval_env1())
   if args.first_visit_succ:
     config.first_visit_succ = True
 
   config.train_env = EnvModule(env, num_envs=args.num_envs, seed=args.seed)
+  config.alice_env = EnvModule(env_A, num_envs=args.num_envs, name='env_A', seed=args.seed)
   config.eval_env = EnvModule(eval_env, num_envs=args.num_eval_envs, name='eval_env', seed=args.seed + 1138)
 
   e = config.eval_env
@@ -148,7 +156,6 @@ def main(args):
   # 8. Make the agent and run the training loop.
   agent = mrl.config_to_agent(make_Alice_and_Bob(config))
 
-  import ipdb;ipdb.set_trace()
 
   if args.visualize_trained_agent:
     print("Loading agent at epoch {}".format(0))
@@ -182,11 +189,10 @@ def main(args):
     agent.logger.log_color('Initial test reward (30 eps):', '{:.2f}'.format(res))
 
     max_ep = int(args.max_steps // args.env_max_step)
-    for epoch in range(int(args.max_steps // args.epoch_len)):
-      t = time.time()
-      agent.train(num_steps=args.epoch_len)
 
-      
+    for epoch in range(int(max_ep // args.epoch_len)):
+      t = time.time()
+      agent.train(num_ep=args.epoch_len)
 
       # VIZUALIZE GOALS
       if args.save_embeddings:
@@ -196,7 +202,6 @@ def main(args):
         agent.logger.add_embedding('last_ags', ag_buffer.get_batch(last_idxs), upper_tag='goals')
         agent.logger.add_embedding('last_bgs', bg_buffer.get_batch(last_idxs), upper_tag='goals')
 
-      
 
       # EVALUATE
       res = np.mean(agent.eval(num_episodes=30).rewards)
@@ -220,7 +225,7 @@ if __name__ == '__main__':
       '--layers', nargs='+', default=(512,512,512), type=int, help='sizes of layers for actor/critic networks')
   parser.add_argument('--noise_type', default='Gaussian', type=str, help='type of action noise (Gaussian or OU)')
   parser.add_argument('--tb', default='', type=str, help='a tag for the agent name / tensorboard')
-  parser.add_argument('--epoch_len', default=100, type=int, help='number of episodes between evals')
+  parser.add_argument('--epoch_len', default=1000, type=int, help='number of episodes between evals')
   parser.add_argument('--num_envs', default=None, type=int, help='number of envs')
 
   # Make env args
