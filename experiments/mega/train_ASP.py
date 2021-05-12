@@ -101,7 +101,7 @@ def main(args):
   env, eval_env = make_env(args)
   if args.first_visit_done:
     env1, eval_env1 = env, eval_env
-    env_A = copy.deepcopy(env)
+    env_A = lambda: AliceWrapper(env1())
     env = lambda: FirstVisitDoneWrapper(env1())
     eval_env = lambda: FirstVisitDoneWrapper(eval_env1())
   if args.first_visit_succ:
